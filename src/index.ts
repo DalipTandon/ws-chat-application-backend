@@ -4,13 +4,17 @@ import { connetDb } from "./utils/config";
 import { userModel } from "./model/db";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import cookieParser from 'cookie-parser';
+import { userAuthentication } from "./middleware/userAuth";
 const app=express();
+import dotenv from 'dotenv';
+dotenv.config();
 app.use(express.json());
+app.use(cookieParser());
 const wss=new WebSocketServer({port:8080});
 
-import dotenv from 'dotenv';
 
-dotenv.config();
+//singup end-point
 app.post("/signup",async(req,res)=>{
     try{
         const {username,email,password}=req.body;   
@@ -34,6 +38,8 @@ app.post("/signup",async(req,res)=>{
     }
 })
 
+
+//signin endpoint
 app.post("/signin",async(req,res)=>{
     try{
         const{username,password}=req.body;
@@ -61,6 +67,11 @@ app.post("/signin",async(req,res)=>{
     }
 })
 
+
+//create room endpoint
+app.post("/createroom",userAuthentication,(req,res)=>{
+    res.send("room created")
+})
 
 interface User{
     socket:WebSocket;
