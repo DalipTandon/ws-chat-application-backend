@@ -1,7 +1,7 @@
 import { WebSocketServer,WebSocket } from "ws";
-import express  from "express";
-import { connetDb } from "./utils/config";
-import { userModel } from "./model/db";
+import express,{Request,Response}  from "express";
+import { connetDb, generateRandomId } from "./utils/config";
+import { roomModel, userModel } from "./model/db";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import cookieParser from 'cookie-parser';
@@ -69,10 +69,52 @@ app.post("/signin",async(req,res)=>{
 
 
 //create room endpoint
-app.post("/createroom",userAuthentication,(req,res)=>{
-    res.send("room created")
+app.post("/createroom",userAuthentication,async(req:Request,res:Response)=>{
+    try{
+        const{roomName,isPrivate}=req.body;
+        const user=req.user.username;
+        const owner=user;   
+        const roomId=await generateRandomId();
+        const room=await roomModel.create({
+            roomName,
+            roomId,
+            owner,
+            users:[owner],
+            isPrivate
+        })
+        res.status(200).json({
+            message:"Room created successfully",
+            data:room
+        })
+    }catch(error:any){
+        res.status(400).send({
+            message:"Error :"+error.message
+        })
+    }
 })
 
+app.post("/joinroom",userAuthentication,async(req:Request,res:Response)=>{
+    try{const roomId=req.body.roomId;
+    const user=req.user.username;
+
+    const isExists=await roomModel.findOne({
+        roomId
+    });
+    if(!isExists){
+        throw new Error("No room with this id exists");
+    }
+    const updateRoom=await roomModel.findOneAndUpdate(
+        {roomId:roomId, users: {$ne: user}}, {$push: {users: user}}
+
+    )
+    res.status(200).send({
+        message:"User successfully joined the room"
+    })}catch(error:any){
+        res.status(400).send({
+            message:"Error :"+error.message
+        })
+    }
+})
 interface User{
     socket:WebSocket;
     room:string
