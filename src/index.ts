@@ -115,6 +115,34 @@ app.post("/joinroom",userAuthentication,async(req:Request,res:Response)=>{
         })
     }
 })
+
+app.post("/message",async(req:Request,res:Response)=>{
+    try{
+        const{roomId,message}=req.body
+        const user=req.user.username;
+        const room = await roomModel.findOne({ roomId });
+            if (!room) {
+                throw new Error("room does't exists")
+        }
+        await roomModel.findOneAndUpdate(
+            {roomId},
+            {
+                $push:{
+                    chats:{
+                        user,
+                        messages:message
+                    }
+                }
+            }
+        )
+
+        res.status(200).send("message send")
+    }catch(error:any){
+        res.status(400).send({
+            message:"Error"+error.message
+        })
+    }
+})
 interface User{
     socket:WebSocket;
     room:string
