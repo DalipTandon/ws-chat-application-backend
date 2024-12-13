@@ -36,7 +36,7 @@ const roomSchema=new mongoose.Schema({
     chats:[
         {
             user:String,
-            messages:String
+            message:String
         }
     ]
 })

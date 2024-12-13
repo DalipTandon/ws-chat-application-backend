@@ -2,16 +2,18 @@ import { WebSocketServer,WebSocket } from "ws";
 import express,{Request,Response}  from "express";
 import { connetDb, generateRandomId } from "./utils/config";
 import { roomModel, userModel } from "./model/db";
+import http from 'http';
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import cookieParser from 'cookie-parser';
 import { userAuthentication } from "./middleware/userAuth";
 const app=express();
+const server = http.createServer(app);
 import dotenv from 'dotenv';
 dotenv.config();
 app.use(express.json());
 app.use(cookieParser());
-const wss=new WebSocketServer({port:8080});
+const wss=new WebSocketServer({server});
 
 
 //singup end-point
@@ -116,7 +118,7 @@ app.post("/joinroom",userAuthentication,async(req:Request,res:Response)=>{
     }
 })
 
-app.post("/message",async(req:Request,res:Response)=>{
+app.post("/message",userAuthentication,async(req:Request,res:Response)=>{
     try{
         const{roomId,message}=req.body
         const user=req.user.username;
@@ -130,12 +132,21 @@ app.post("/message",async(req:Request,res:Response)=>{
                 $push:{
                     chats:{
                         user,
-                        messages:message
+                        message:message
                     }
                 }
             }
         )
-
+        allSockets
+            .filter((userSocket) => userSocket.room === roomId)
+            .forEach((userSocket) => {
+                userSocket.socket.send(
+                    JSON.stringify({
+                        type: "chat",
+                        payload: { user, message },
+                    })
+                );
+            });
         res.status(200).send("message send")
     }catch(error:any){
         res.status(400).send({
@@ -143,25 +154,25 @@ app.post("/message",async(req:Request,res:Response)=>{
         })
     }
 })
-interface User{
-    socket:WebSocket;
-    room:string
-}
 
 //  {
-//     "type": "join",
-//     "payload": {
-//       "roomId": "123"
-//     }
-//  }
-
-
-// {
-// 	"type": "chat",
-// 	"payload": {
-// 		"message: "hi there"
-// 	}
-// }
+    //     "type": "join",
+    //     "payload": {
+        //       "roomId": "123"
+        //     }
+        //  }
+        
+        
+        // {
+            // 	"type": "chat",
+            // 	"payload": {
+                // 		"message: "hi there"
+                // 	}
+                // }
+            interface User{
+            socket:WebSocket;
+            room:string
+            }
 
 let allSockets:User[]=[];
 wss.on("connection",(socket)=>{
@@ -169,13 +180,16 @@ wss.on("connection",(socket)=>{
 
     socket.on("message",(message)=>{
         //@ts-ignore
-        const parsedMessage=JSON.parse(message);
+        const parsedMessage=JSON.parse(message.toString());
+        console.log(parsedMessage.payload.message);
+        
         if(parsedMessage.type =="join"){
           //  console.log("room joined");
+          const { roomId } = parsedMessage.payload;
             
             allSockets.push({
                 socket,
-                room:parsedMessage.payload.roomId
+                room:roomId
             })
         }
 
@@ -188,21 +202,38 @@ wss.on("connection",(socket)=>{
                     currentRoom=allSockets[i].room;
                 }
             }
-            for(let i=0;i<allSockets.length;i++){
-                if(allSockets[i].room == currentRoom){
-                    allSockets[i].socket.send(parsedMessage.payload.message);
-                }
+            if (currentRoom) {
+                allSockets
+                    .filter((user) => user.room === currentRoom)
+                    .forEach((user) => {
+                        user.socket.send(
+                            JSON.stringify({
+                                type: "chat",
+                                message: parsedMessage.payload.message,
+                            })
+                        );
+                    });
+            } else {
+                console.error("Socket not in a room");
             }
         }
         
     })
-})
+    socket.on("close", () => {
+        console.log("User disconnected");
+        allSockets = allSockets.filter((user) => user.socket !== socket);
+    });
+});
+
+
+
+
 
 
 
 connetDb().then(()=>{
     console.log("connected to database");
-    app.listen(3000,()=>{
+    server.listen(3000,()=>{
         console.log("server started at port 3000");
         
     });
