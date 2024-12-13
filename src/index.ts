@@ -6,6 +6,7 @@ import http from 'http';
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import cookieParser from 'cookie-parser';
+import cors from "cors";
 import { userAuthentication } from "./middleware/userAuth";
 const app=express();
 const server = http.createServer(app);
@@ -15,6 +16,10 @@ app.use(express.json());
 app.use(cookieParser());
 const wss=new WebSocketServer({server});
 
+app.use(cors({
+    origin:"http://localhost:5173",
+    credentials:true
+}))
 
 //singup end-point
 app.post("/signup",async(req,res)=>{
@@ -30,7 +35,8 @@ app.post("/signup",async(req,res)=>{
         var token=await jwt.sign({_id:user._id},process.env.SECREAT as string,{expiresIn:"7d"})
         res.cookie("token",token)
         res.status(200).send({
-            message:"User succesfully signedin"
+            message:"User succesfully signedin",
+            data:user
         })
 
     }catch(error){
@@ -59,7 +65,8 @@ app.post("/signin",async(req,res)=>{
         var token=await jwt.sign({_id:user._id},process.env.SECREAT as string,{expiresIn:"7d"});
         res.cookie("token",token);
         res.status(200).send({
-            message:"User successfully signed in"
+            message:"User successfully signed in",
+            data:user
         })
         }
     }catch(error:any){
@@ -96,7 +103,8 @@ app.post("/createroom",userAuthentication,async(req:Request,res:Response)=>{
 })
 
 app.post("/joinroom",userAuthentication,async(req:Request,res:Response)=>{
-    try{const roomId=req.body.roomId;
+    try{
+        const roomId=req.body.roomId;
     const user=req.user.username;
 
     const isExists=await roomModel.findOne({
@@ -112,6 +120,21 @@ app.post("/joinroom",userAuthentication,async(req:Request,res:Response)=>{
     res.status(200).send({
         message:"User successfully joined the room"
     })}catch(error:any){
+        res.status(400).send({
+            message:"Error :"+error.message
+        })
+    }
+})
+app.get("/availableroom",userAuthentication,async(req,res)=>{
+    try{
+        const allRoom=await roomModel.find({
+            isPrivate:false
+        })
+        res.status(200).send({
+            data:allRoom
+        })
+
+    }catch(error:any){
         res.status(400).send({
             message:"Error :"+error.message
         })
@@ -155,6 +178,18 @@ app.post("/message",userAuthentication,async(req:Request,res:Response)=>{
     }
 })
 
+app.post("/logout",userAuthentication,(req,res)=>{
+    try{
+        res.cookie("token",null,{expires:new Date(Date.now())})
+        res.status(200).send({
+            message:"Logged out successfully"
+        })
+    }catch(error:any){
+        res.status(400).send({
+            message:"Error :"+error.message
+        })
+    }
+})
 //  {
     //     "type": "join",
     //     "payload": {
