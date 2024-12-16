@@ -155,21 +155,21 @@ app.post("/message",userAuthentication,async(req:Request,res:Response)=>{
                 $push:{
                     chats:{
                         user,
-                        message:message
+                        message
                     }
                 }
             }
         )
         allSockets
-            .filter((userSocket) => userSocket.room === roomId)
-            .forEach((userSocket) => {
-                userSocket.socket.send(
-                    JSON.stringify({
-                        type: "chat",
-                        payload: { user, message },
-                    })
-                );
-            });
+        .filter((userSocket) => userSocket.room === roomId)
+        .forEach((userSocket) => {
+            userSocket.socket.send(
+                JSON.stringify({
+                    type: "chat",
+                    payload: { user, message },
+                })
+            );
+        });
         res.status(200).send("message send")
     }catch(error:any){
         res.status(400).send({
@@ -187,6 +187,28 @@ app.post("/logout",userAuthentication,(req,res)=>{
     }catch(error:any){
         res.status(400).send({
             message:"Error :"+error.message
+        })
+    }
+})
+
+app.get("/room/:roomId",userAuthentication,async(req,res)=>{
+    try{
+        const roomId=req.params.roomId;
+        console.log(roomId);
+        
+      //  const Room=roomId.toString();
+        const findRoom=await roomModel.findOne({roomId});
+        if(!findRoom){
+            throw new Error("No room with this id exists");
+        }
+
+        res.status(200).send({
+            message:"Successfully fetched room data",
+            data:findRoom
+        })
+    }catch(error:any){
+        res.status(400).send({
+            message:"Error :"+ error.message
         })
     }
 })
